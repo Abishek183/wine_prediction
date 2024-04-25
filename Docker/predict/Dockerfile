@@ -29,9 +29,9 @@ RUN wget https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk/1.8.0/aws-jav
 RUN wget https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.0.0/hadoop-aws-3.0.0.jar -P /spark/jars/
 
 
-ADD prediction_wine.py .
-ADD TrainingDataset.csv .
+
+ADD prediction.py .
 ADD ValidationDataset.csv .
 
 # Model will be fetched from S3 using IAM role associated with EMR instance
-ENTRYPOINT ["/opt/spark/bin/spark-submit", "--packages", "org.apache.hadoop:hadoop-aws:2.7.3,com.amazonaws:aws-java-sdk:1.7.4", "prediction_wine.py"]
+ENTRYPOINT ["/opt/spark/bin/spark-submit", "--packages", "org.apache.hadoop:hadoop-aws:2.7.3,com.amazonaws:aws-java-sdk:1.7.4", "prediction.py"]
