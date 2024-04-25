@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
 
     input_path = "TrainingDataset.csv"
-    output_path = "/job/trainedmodel"
+    model_path = "/job/trainedmodel"
 
     print(f"Reading training CSV file from {input_path}")
     df = (spark.read
@@ -90,6 +90,5 @@ if __name__ == "__main__":
     model = cvmodel.bestModel
 
     print("Saving the best model to S3")
-    model_path = output_path
     model.write().overwrite().save(model_path)
     spark.stop()
