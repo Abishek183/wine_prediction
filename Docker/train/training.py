@@ -10,49 +10,49 @@ from pyspark.ml.feature import StringIndexer
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col
 
-def clean_data(df):
-    return df.select(*(col(c).cast("double").alias(c.strip("\"")) for c in df.columns))
+def clean_data(data_frame):
+    return data_frame.select(*(col(column).cast("double").alias(column.strip("\"")) for column in data_frame.columns))
 
 if __name__ == "__main__":
     print("Starting Spark Application")
 
 
-    spark = SparkSession.builder.appName("WineQualityPrediction").getOrCreate()
+    spark_session = SparkSession.builder.appName("WineQualityPrediction").getOrCreate()
 
-    sc = spark.sparkContext
-    sc.setLogLevel('ERROR')
+    spark_context = spark_session.sparkContext
+    spark_context.setLogLevel('ERROR')
 
-    spark._jsc.hadoopConfiguration().set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+    spark_session._jsc.hadoopConfiguration().set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
 
 
-    input_path = "TrainingDataset.csv"
-    model_path = "/job/trainedmodel"
+    training_data_path = "TrainingDataset.csv"
+    trained_model_path = "/job/trainedmodel"
 
-    print(f"Reading training CSV file from {input_path}")
-    df = (spark.read
+    print(f"Reading training CSV file from {training_data_path}")
+    raw_data_frame = (spark_session.read
           .format("csv")
           .option('header', 'true')
           .option("sep", ";")
           .option("inferschema", 'true')
-          .load(input_path))
+          .load(training_data_path))
     
-    train_data_set = clean_data(df)
+    clean_training_data = clean_data(raw_data_frame)
 
-    all_features = ['fixed acidity', 'volatile acidity', 'citric acid', 'residual sugar',
+    feature_columns = ['fixed acidity', 'volatile acidity', 'citric acid', 'residual sugar',
                     'chlorides', 'free sulfur dioxide', 'total sulfur dioxide', 'density',
                     'pH', 'sulphates', 'alcohol', 'quality']
 
     print("Creating VectorAssembler")
-    assembler = VectorAssembler(inputCols=all_features, outputCol='features')
+    feature_assembler = VectorAssembler(inputCols=feature_columns, outputCol='features')
     
     print("Creating StringIndexer")
-    indexer = StringIndexer(inputCol="quality", outputCol="label")
+    quality_indexer = StringIndexer(inputCol="quality", outputCol="label")
 
     print("Caching data for faster access")
-    train_data_set.cache()
+    clean_training_data.cache()
     
     print("Creating RandomForestClassifier")
-    rf = RandomForestClassifier(labelCol='label', 
+    random_forest_classifier = RandomForestClassifier(labelCol='label', 
                                 featuresCol='features',
                                 numTrees=150,
                                 maxDepth=15,
@@ -60,35 +60,33 @@ if __name__ == "__main__":
                                 impurity='gini')
     
     print("Creating Pipeline for training")
-    pipeline = Pipeline(stages=[assembler, indexer, rf])
-    model = pipeline.fit(train_data_set)
+    training_pipeline = Pipeline(stages=[feature_assembler, quality_indexer, random_forest_classifier])
+    trained_model = training_pipeline.fit(clean_training_data)
 
-    evaluator = MulticlassClassificationEvaluator(labelCol='label', 
+    accuracy_evaluator = MulticlassClassificationEvaluator(labelCol='label', 
                                                   predictionCol='prediction', 
                                                   metricName='accuracy')
 
     print("Retraining model on multiple parameters using CrossValidator")
-    cvmodel = None
-    paramGrid = ParamGridBuilder() \
-        .addGrid(rf.maxDepth, [6, 9]) \
-        .addGrid(rf.numTrees, [50, 150]) \
-        .addGrid(rf.minInstancesPerNode, [6]) \
-        .addGrid(rf.seed, [100, 200]) \
-        .addGrid(rf.impurity, ["entropy", "gini"]) \
+    parameter_grid = ParamGridBuilder() \
+        .addGrid(random_forest_classifier.maxDepth, [6, 9]) \
+        .addGrid(random_forest_classifier.numTrees, [50, 150]) \
+        .addGrid(random_forest_classifier.minInstancesPerNode, [6]) \
+        .addGrid(random_forest_classifier.seed, [100, 200]) \
+        .addGrid(random_forest_classifier.impurity, ["entropy", "gini"]) \
         .build()
     
-    pipeline = Pipeline(stages=[assembler, indexer, rf])
-    crossval = CrossValidator(estimator=pipeline,
-                              estimatorParamMaps=paramGrid,
-                              evaluator=evaluator,
+    cross_validator = CrossValidator(estimator=training_pipeline,
+                              estimatorParamMaps=parameter_grid,
+                              evaluator=accuracy_evaluator,
                               numFolds=2)
 
     print("Fitting CrossValidator to the training data")
-    cvmodel = crossval.fit(train_data_set)
+    best_model = cross_validator.fit(clean_training_data)
     
     print("Saving the best model to new param `model`")
-    model = cvmodel.bestModel
+    final_model = best_model.bestModel
 
     print("Saving the best model to S3")
-    model.write().overwrite().save(model_path)
-    spark.stop()
+    final_model.write().overwrite().save(trained_model_path)
+    spark_session.stop()
