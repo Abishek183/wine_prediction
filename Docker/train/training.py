@@ -69,9 +69,9 @@ if __name__ == "__main__":
 
     print("Retraining model on multiple parameters using CrossValidator")
     parameter_grid = ParamGridBuilder() \
-        .addGrid(random_forest_classifier.maxDepth, [6, 9]) \
+        .addGrid(random_forest_classifier.maxDepth, [5, 10]) \
         .addGrid(random_forest_classifier.numTrees, [50, 150]) \
-        .addGrid(random_forest_classifier.minInstancesPerNode, [6]) \
+        .addGrid(random_forest_classifier.minInstancesPerNode, [5]) \
         .addGrid(random_forest_classifier.seed, [100, 200]) \
         .addGrid(random_forest_classifier.impurity, ["entropy", "gini"]) \
         .build()
@@ -84,9 +84,8 @@ if __name__ == "__main__":
     print("Fitting CrossValidator to the training data")
     best_model = cross_validator.fit(clean_training_data)
     
-    print("Saving the best model to new param `model`")
     final_model = best_model.bestModel
 
-    print("Saving the best model to S3")
+    print("Saving the model")
     final_model.write().overwrite().save(trained_model_path)
     spark_session.stop()
